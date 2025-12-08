@@ -49,5 +49,13 @@ public class User {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserBracketPrediction> bracketPredictions;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id")
+    private ProdeGroup group;
+
+    @Column(name = "total_points", nullable = false)
+    @Builder.Default
+    private Integer totalPoints = 0;
 }
 

@@ -11,6 +11,7 @@ import wc.prode._6.dto.response.UserMatchResultResponse;
 import wc.prode._6.service.UserMatchResultService;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/user/matches/results")
@@ -51,11 +52,21 @@ public class UserMatchController {
             @PathVariable Long matchId,
             Authentication authentication) {
         String userEmail = authentication.getName();
-        UserMatchResultResponse result = userMatchResultService.getUserMatchResultByMatchId(userEmail, matchId);
+        Optional<UserMatchResultResponse> resultOpt = userMatchResultService.getUserMatchResultByMatchId(userEmail, matchId);
+        
+        if (resultOpt.isEmpty()) {
+            ApiResponse<UserMatchResultResponse> response = ApiResponse.<UserMatchResultResponse>builder()
+                    .success(false)
+                    .message("User match result not found")
+                    .data(null)
+                    .build();
+            return ResponseEntity.status(404).body(response);
+        }
+        
         ApiResponse<UserMatchResultResponse> response = ApiResponse.<UserMatchResultResponse>builder()
                 .success(true)
                 .message("User match result retrieved successfully")
-                .data(result)
+                .data(resultOpt.get())
                 .build();
         return ResponseEntity.ok(response);
     }

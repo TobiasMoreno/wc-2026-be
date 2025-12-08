@@ -13,5 +13,7 @@ public interface UserMatchResultRepository extends JpaRepository<UserMatchResult
     List<UserMatchResult> findByUser(User user);
     Optional<UserMatchResult> findByUserAndMatchId(User user, Long matchId);
     boolean existsByUserAndMatchId(User user, Long matchId);
+    List<UserMatchResult> findByMatchId(Long matchId);
+    List<UserMatchResult> findByUserId(Long userId);
 }
 

@@ -27,10 +27,8 @@ public class UserMatchResult {
     @JoinColumn(name = "match_id", nullable = false)
     private Match match;
 
-    @Column(name = "home_score")
-    private Integer homeScore;
-
-    @Column(name = "away_score")
-    private Integer awayScore;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "predicted_result", nullable = false)
+    private PredictedResult predictedResult;
 }
 

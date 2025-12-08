@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import wc.prode._6.entity.PredictedResult;
 
 @Data
 @NoArgsConstructor
@@ -12,7 +13,7 @@ public class UserMatchResultRequest {
     @NotNull(message = "Match ID is required")
     private Long matchId;
 
-    private Integer homeScore;
-    private Integer awayScore;
+    @NotNull(message = "Predicted result is required")
+    private PredictedResult predictedResult;
 }
 

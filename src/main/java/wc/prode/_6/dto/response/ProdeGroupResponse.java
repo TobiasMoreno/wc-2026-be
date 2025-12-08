@@ -4,15 +4,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import wc.prode._6.entity.PredictedResult;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UserMatchResultResponse {
+public class ProdeGroupResponse {
     private Long id;
-    private MatchResponse match;
-    private PredictedResult predictedResult;
+    private String name;
 }
 

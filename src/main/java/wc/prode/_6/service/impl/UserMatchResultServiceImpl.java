@@ -19,6 +19,7 @@ import wc.prode._6.exception.BadRequestException;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -54,8 +55,7 @@ public class UserMatchResultServiceImpl implements UserMatchResultService {
                         .match(match)
                         .build());
 
-        result.setHomeScore(request.getHomeScore());
-        result.setAwayScore(request.getAwayScore());
+        result.setPredictedResult(request.getPredictedResult());
 
         result = userMatchResultRepository.save(result);
         return userMatchResultMapper.toResponse(result);
@@ -81,11 +81,10 @@ public class UserMatchResultServiceImpl implements UserMatchResultService {
     }
 
     @Override
-    public UserMatchResultResponse getUserMatchResultByMatchId(String userEmail, Long matchId) {
+    public Optional<UserMatchResultResponse> getUserMatchResultByMatchId(String userEmail, Long matchId) {
         User user = getUserByEmail(userEmail);
-        UserMatchResult result = userMatchResultRepository.findByUserAndMatchId(user, matchId)
-                .orElseThrow(() -> new ResourceNotFoundException("User match result not found"));
-        return userMatchResultMapper.toResponse(result);
+        return userMatchResultRepository.findByUserAndMatchId(user, matchId)
+                .map(userMatchResultMapper::toResponse);
     }
 
     private User getUserByEmail(String email) {

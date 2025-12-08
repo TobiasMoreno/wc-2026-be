@@ -3,12 +3,15 @@ package wc.prode._6.config;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import wc.prode._6.entity.Match;
 import wc.prode._6.entity.Phase;
+import wc.prode._6.entity.ProdeGroup;
 import wc.prode._6.entity.Team;
 import wc.prode._6.repository.MatchRepository;
+import wc.prode._6.repository.ProdeGroupRepository;
 import wc.prode._6.repository.TeamRepository;
 
 import java.time.LocalDateTime;
@@ -22,6 +25,8 @@ public class DataSeeder implements CommandLineRunner {
 
     private final TeamRepository teamRepository;
     private final MatchRepository matchRepository;
+    private final ProdeGroupRepository prodeGroupRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -36,7 +41,22 @@ public class DataSeeder implements CommandLineRunner {
             seedMatches();
         }
 
+        if (prodeGroupRepository.count() == 0) {
+            log.info("Seeding default group...");
+            seedDefaultGroup();
+        }
+
         log.info("Data seeding completed!");
+    }
+
+    private void seedDefaultGroup() {
+        // Crear grupo por defecto con contraseña "prode2026"
+        ProdeGroup defaultGroup = ProdeGroup.builder()
+                .name("Grupo Principal")
+                .password(passwordEncoder.encode("prode2026"))
+                .build();
+        prodeGroupRepository.save(defaultGroup);
+        log.info("Default group created: 'Grupo Principal' with password 'prode2026'");
     }
 
     private void seedTeams() {

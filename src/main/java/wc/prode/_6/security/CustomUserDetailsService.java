@@ -5,11 +5,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import wc.prode._6.entity.User;
+import wc.prode._6.repository.UserRepository;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,20 +21,20 @@ import java.util.List;
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        // Esta implementación básica crea un usuario con permisos básicos
-        // Puedes expandir esto para cargar usuarios desde la base de datos
+        User appUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
         
-        // Por ahora, creamos un usuario básico con el email
-        // El rol se puede extraer del token si es necesario
         List<GrantedAuthority> authorities = new ArrayList<>();
-        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        String roleWithPrefix = "ROLE_" + appUser.getRole().name();
+        authorities.add(new SimpleGrantedAuthority(roleWithPrefix));
         
-        return User.builder()
-                .username(email)
-                .password("") // No se usa password en autenticación JWT
+        return org.springframework.security.core.userdetails.User.builder()
+                .username(appUser.getEmail())
+                .password("") // No se usa password en autenticación JWT/OAuth2.0
                 .authorities(authorities)
                 .accountExpired(false)
                 .accountLocked(false)
@@ -61,7 +62,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                 authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
             }
             
-            return User.builder()
+            return org.springframework.security.core.userdetails.User.builder()
                     .username(email)
                     .password("")
                     .authorities(authorities)

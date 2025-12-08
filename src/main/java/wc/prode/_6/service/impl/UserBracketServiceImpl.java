@@ -17,7 +17,10 @@ import wc.prode._6.repository.TeamRepository;
 import wc.prode._6.repository.UserBracketPredictionRepository;
 import wc.prode._6.repository.UserRepository;
 import wc.prode._6.service.UserBracketService;
+import wc.prode._6.exception.BadRequestException;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -46,6 +49,9 @@ public class UserBracketServiceImpl implements UserBracketService {
         Match match = matchRepository.findById(request.getMatchId())
                 .orElseThrow(() -> new ResourceNotFoundException("Match not found with id: " + request.getMatchId()));
 
+        // Validar que no se pueda apostar menos de 1 hora antes del partido
+        validateBettingDeadline(match);
+
         UserBracketPrediction prediction = userBracketPredictionRepository.findByUserAndMatchId(user, request.getMatchId())
                 .orElse(UserBracketPrediction.builder()
                         .user(user)
@@ -62,6 +68,16 @@ public class UserBracketServiceImpl implements UserBracketService {
 
         prediction = userBracketPredictionRepository.save(prediction);
         return userBracketPredictionMapper.toResponse(prediction);
+    }
+
+    private void validateBettingDeadline(Match match) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime matchDate = match.getDate();
+        long hoursUntilMatch = ChronoUnit.HOURS.between(now, matchDate);
+        
+        if (hoursUntilMatch < 1) {
+            throw new BadRequestException("Las apuestas se cierran 1 hora antes del partido. Ya no es posible realizar apuestas para este partido.");
+        }
     }
 
     @Override

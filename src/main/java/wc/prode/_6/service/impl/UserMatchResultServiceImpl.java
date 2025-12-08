@@ -14,7 +14,10 @@ import wc.prode._6.repository.MatchRepository;
 import wc.prode._6.repository.UserMatchResultRepository;
 import wc.prode._6.repository.UserRepository;
 import wc.prode._6.service.UserMatchResultService;
+import wc.prode._6.exception.BadRequestException;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -42,6 +45,9 @@ public class UserMatchResultServiceImpl implements UserMatchResultService {
         Match match = matchRepository.findById(request.getMatchId())
                 .orElseThrow(() -> new ResourceNotFoundException("Match not found with id: " + request.getMatchId()));
 
+        // Validar que no se pueda apostar menos de 1 hora antes del partido
+        validateBettingDeadline(match);
+
         UserMatchResult result = userMatchResultRepository.findByUserAndMatchId(user, request.getMatchId())
                 .orElse(UserMatchResult.builder()
                         .user(user)
@@ -53,6 +59,16 @@ public class UserMatchResultServiceImpl implements UserMatchResultService {
 
         result = userMatchResultRepository.save(result);
         return userMatchResultMapper.toResponse(result);
+    }
+
+    private void validateBettingDeadline(Match match) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime matchDate = match.getDate();
+        long hoursUntilMatch = ChronoUnit.HOURS.between(now, matchDate);
+        
+        if (hoursUntilMatch < 1) {
+            throw new BadRequestException("Las apuestas se cierran 1 hora antes del partido. Ya no es posible realizar apuestas para este partido.");
+        }
     }
 
     @Override

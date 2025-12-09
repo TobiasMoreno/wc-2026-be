@@ -1,8 +1,11 @@
 package wc.prode._6.config;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,9 +17,10 @@ import wc.prode._6.repository.MatchRepository;
 import wc.prode._6.repository.ProdeGroupRepository;
 import wc.prode._6.repository.TeamRepository;
 
+import java.io.InputStream;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Component
 @RequiredArgsConstructor
@@ -27,6 +31,7 @@ public class DataSeeder implements CommandLineRunner {
     private final MatchRepository matchRepository;
     private final ProdeGroupRepository prodeGroupRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -38,7 +43,22 @@ public class DataSeeder implements CommandLineRunner {
 
         if (matchRepository.count() == 0) {
             log.info("Seeding matches data...");
-            seedMatches();
+            // Crear equipo "Por definir" si no existe (para partidos de knockout con equipos pendientes)
+            createPlaceholderTeam();
+            
+            // Intentar importar desde matches_2026.json (fase de grupos)
+            int groupMatches = importMatchesFromJson("matches_2026.json");
+            
+            // Intentar importar desde knockout_2026.json (fases eliminatorias)
+            int knockoutMatches = importMatchesFromJson("knockout_2026.json");
+            
+            if (groupMatches > 0 || knockoutMatches > 0) {
+                log.info("Matches imported successfully: {} group matches, {} knockout matches", 
+                    groupMatches, knockoutMatches);
+            } else {
+                log.info("JSON files not found or empty, using default seed data");
+                seedMatches();
+            }
         }
 
         if (prodeGroupRepository.count() == 0) {
@@ -60,6 +80,70 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedTeams() {
+        try {
+            ClassPathResource resource = new ClassPathResource("team.json");
+            if (!resource.exists()) {
+                log.warn("team.json not found in classpath, using default teams");
+                seedDefaultTeams();
+                return;
+            }
+            
+            InputStream inputStream = resource.getInputStream();
+            List<Map<String, Object>> teamsData = objectMapper.readValue(
+                inputStream, 
+                new TypeReference<List<Map<String, Object>>>() {}
+            );
+            
+            if (teamsData == null || teamsData.isEmpty()) {
+                log.warn("team.json is empty, using default teams");
+                seedDefaultTeams();
+                return;
+            }
+            
+            int importedTeams = 0;
+            for (Map<String, Object> teamData : teamsData) {
+                String name = (String) teamData.get("name");
+                String flagUrl = (String) teamData.get("flagUrl");
+                
+                if (name == null || name.isEmpty()) {
+                    continue;
+                }
+                
+                // Verificar si el equipo ya existe
+                if (teamRepository.findByName(name).isEmpty()) {
+                    Team team = Team.builder()
+                            .name(name)
+                            .flagUrl(flagUrl != null ? flagUrl : "https://flagsapi.com/XX/flat/64.png")
+                            .build();
+                    teamRepository.save(team);
+                    importedTeams++;
+                }
+            }
+            
+            log.info("Imported {} teams from team.json", importedTeams);
+            
+        } catch (Exception e) {
+            log.error("Error importing teams from team.json, using default teams", e);
+            seedDefaultTeams();
+        }
+    }
+    
+    /**
+     * Crea el equipo placeholder "Por definir" para partidos de knockout con equipos pendientes
+     */
+    private void createPlaceholderTeam() {
+        String placeholderName = "Por definir";
+        if (teamRepository.findByName(placeholderName).isEmpty()) {
+            Team placeholder = Team.builder()
+                    .name(placeholderName)
+                    .flagUrl("https://flagsapi.com/XX/flat/64.png")
+                    .build();
+            teamRepository.save(placeholder);
+            log.info("Created placeholder team: '{}'", placeholderName);
+        }
+    }
+    
+    private void seedDefaultTeams() {
         List<String> teams = Arrays.asList(
                 "Argentina", "Brasil", "Uruguay", "Colombia", "Ecuador", "Perú", "Chile", "Paraguay",
                 "Estados Unidos", "México", "Canadá", "Costa Rica", "Panamá", "Jamaica", "Honduras", "El Salvador",
@@ -70,67 +154,14 @@ public class DataSeeder implements CommandLineRunner {
         );
 
         for (String teamName : teams) {
-            Team team = Team.builder()
-                    .name(teamName)
-                    .flagUrl("https://flagsapi.com/" + getCountryCode(teamName) + "/flat/64.png")
-                    .build();
-            teamRepository.save(team);
+            if (teamRepository.findByName(teamName).isEmpty()) {
+                Team team = Team.builder()
+                        .name(teamName)
+                        .flagUrl("https://flagsapi.com/XX/flat/64.png")
+                        .build();
+                teamRepository.save(team);
+            }
         }
-    }
-
-    private String getCountryCode(String countryName) {
-        // Mapeo simplificado de nombres a códigos ISO
-        return switch (countryName) {
-            case "Argentina" -> "AR";
-            case "Brasil" -> "BR";
-            case "Uruguay" -> "UY";
-            case "Colombia" -> "CO";
-            case "Ecuador" -> "EC";
-            case "Perú" -> "PE";
-            case "Chile" -> "CL";
-            case "Paraguay" -> "PY";
-            case "Estados Unidos" -> "US";
-            case "México" -> "MX";
-            case "Canadá" -> "CA";
-            case "Costa Rica" -> "CR";
-            case "Panamá" -> "PA";
-            case "Jamaica" -> "JM";
-            case "Honduras" -> "HN";
-            case "El Salvador" -> "SV";
-            case "España" -> "ES";
-            case "Francia" -> "FR";
-            case "Inglaterra" -> "GB";
-            case "Alemania" -> "DE";
-            case "Italia" -> "IT";
-            case "Países Bajos" -> "NL";
-            case "Bélgica" -> "BE";
-            case "Portugal" -> "PT";
-            case "Croacia" -> "HR";
-            case "Dinamarca" -> "DK";
-            case "Suiza" -> "CH";
-            case "Polonia" -> "PL";
-            case "Suecia" -> "SE";
-            case "Noruega" -> "NO";
-            case "Austria" -> "AT";
-            case "República Checa" -> "CZ";
-            case "Japón" -> "JP";
-            case "Corea del Sur" -> "KR";
-            case "Australia" -> "AU";
-            case "Irán" -> "IR";
-            case "Arabia Saudita" -> "SA";
-            case "Qatar" -> "QA";
-            case "Emiratos Árabes Unidos" -> "AE";
-            case "China" -> "CN";
-            case "Senegal" -> "SN";
-            case "Marruecos" -> "MA";
-            case "Túnez" -> "TN";
-            case "Egipto" -> "EG";
-            case "Nigeria" -> "NG";
-            case "Camerún" -> "CM";
-            case "Ghana" -> "GH";
-            case "Costa de Marfil" -> "CI";
-            default -> "XX";
-        };
     }
 
     private void seedMatches() {
@@ -212,6 +243,188 @@ public class DataSeeder implements CommandLineRunner {
                 "Estadio Azteca", "Estadio Akron", "Estadio BBVA"
         );
         return stadiums.get((int) (Math.random() * stadiums.size()));
+    }
+    
+    /**
+     * Importa partidos desde un archivo JSON
+     * @param fileName nombre del archivo JSON (matches_2026.json o knockout_2026.json)
+     * @return número de partidos importados
+     */
+    private int importMatchesFromJson(String fileName) {
+        try {
+            ClassPathResource resource = new ClassPathResource(fileName);
+            if (!resource.exists()) {
+                log.warn("{} not found in classpath", fileName);
+                return 0;
+            }
+            
+            InputStream inputStream = resource.getInputStream();
+            List<Map<String, Object>> matchesData = objectMapper.readValue(
+                inputStream, 
+                new TypeReference<List<Map<String, Object>>>() {}
+            );
+            
+            if (matchesData == null || matchesData.isEmpty()) {
+                log.warn("{} is empty or has no matches", fileName);
+                return 0;
+            }
+            
+            int importedMatches = 0;
+            int skippedMatches = 0;
+            DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
+            
+            // Para knockout_2026.json, permitir partidos con "Por definir"
+            boolean allowPlaceholders = fileName.equals("knockout_2026.json");
+            
+            for (Map<String, Object> matchData : matchesData) {
+                if (importMatch(matchData, formatter, allowPlaceholders)) {
+                    importedMatches++;
+                } else {
+                    skippedMatches++;
+                }
+            }
+            
+            log.info("Imported {} matches from {} ({} skipped)", importedMatches, fileName, skippedMatches);
+            return importedMatches;
+            
+        } catch (Exception e) {
+            log.error("Error importing matches from {}", fileName, e);
+            return 0;
+        }
+    }
+    
+    /**
+     * Importa un partido individual desde el JSON procesado
+     * @param matchData datos del partido
+     * @param formatter formateador de fecha
+     * @param allowPlaceholders si true, permite equipos "Por definir"
+     */
+    private boolean importMatch(Map<String, Object> matchData, DateTimeFormatter formatter, boolean allowPlaceholders) {
+        try {
+            // Obtener nombres de equipos
+            String homeTeamName = (String) matchData.get("homeTeam");
+            String awayTeamName = (String) matchData.get("awayTeam");
+            
+            // Validar nombres de equipos
+            if (homeTeamName == null || awayTeamName == null || homeTeamName.isEmpty() || awayTeamName.isEmpty()) {
+                return false;
+            }
+            
+            // Si no se permiten placeholders, saltar partidos con "Por definir"
+            if (!allowPlaceholders && ("Por definir".equals(homeTeamName) || "Por definir".equals(awayTeamName))) {
+                return false;
+            }
+            
+            // Buscar equipos en la base de datos
+            Team homeTeam = teamRepository.findByName(homeTeamName)
+                .orElse(null);
+            Team awayTeam = teamRepository.findByName(awayTeamName)
+                .orElse(null);
+            
+            // Si no se encuentran los equipos, crear un log de advertencia pero continuar
+            if (homeTeam == null) {
+                if (allowPlaceholders && "Por definir".equals(homeTeamName)) {
+                    // El equipo placeholder debería existir ya (creado en createPlaceholderTeam)
+                    homeTeam = teamRepository.findByName("Por definir").orElse(null);
+                }
+                if (homeTeam == null) {
+                    log.warn("Team not found: {}, skipping match", homeTeamName);
+                    return false;
+                }
+            }
+            
+            if (awayTeam == null) {
+                if (allowPlaceholders && "Por definir".equals(awayTeamName)) {
+                    // El equipo placeholder debería existir ya (creado en createPlaceholderTeam)
+                    awayTeam = teamRepository.findByName("Por definir").orElse(null);
+                }
+                if (awayTeam == null) {
+                    log.warn("Team not found: {}, skipping match", awayTeamName);
+                    return false;
+                }
+            }
+            
+            // Parsear fecha
+            String dateStr = (String) matchData.get("date");
+            if (dateStr == null || dateStr.isEmpty()) {
+                log.warn("Match date is missing, skipping match");
+                return false;
+            }
+            
+            LocalDateTime matchDate;
+            try {
+                matchDate = LocalDateTime.parse(dateStr, formatter);
+            } catch (Exception e) {
+                log.warn("Could not parse date for match: {}", dateStr, e);
+                return false;
+            }
+            
+            // Obtener información del partido
+            String city = (String) matchData.get("city");
+            if (city == null || city.isEmpty()) {
+                city = "Ciudad no especificada";
+            }
+            
+            String stadium = (String) matchData.get("stadium");
+            if (stadium == null || stadium.isEmpty()) {
+                stadium = "Estadio no especificado";
+            }
+            
+            // Obtener fase
+            String phaseStr = (String) matchData.get("phase");
+            Phase phase;
+            try {
+                phase = Phase.valueOf(phaseStr != null ? phaseStr.toUpperCase() : "GROUP");
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid phase: {}, using GROUP", phaseStr);
+                phase = Phase.GROUP;
+            }
+            
+            // Obtener grupo (opcional)
+            String group = (String) matchData.get("group");
+            
+            // Obtener scores (pueden ser null)
+            Integer homeScore = null;
+            Integer awayScore = null;
+            Object homeScoreObj = matchData.get("homeScore");
+            Object awayScoreObj = matchData.get("awayScore");
+            
+            if (homeScoreObj != null) {
+                if (homeScoreObj instanceof Integer) {
+                    homeScore = (Integer) homeScoreObj;
+                } else if (homeScoreObj instanceof Number) {
+                    homeScore = ((Number) homeScoreObj).intValue();
+                }
+            }
+            
+            if (awayScoreObj != null) {
+                if (awayScoreObj instanceof Integer) {
+                    awayScore = (Integer) awayScoreObj;
+                } else if (awayScoreObj instanceof Number) {
+                    awayScore = ((Number) awayScoreObj).intValue();
+                }
+            }
+            
+            // Crear el partido
+            Match match = Match.builder()
+                .date(matchDate)
+                .city(city)
+                .stadium(stadium)
+                .phase(phase)
+                .group(group)
+                .homeTeam(homeTeam)
+                .awayTeam(awayTeam)
+                .homeScore(homeScore)
+                .awayScore(awayScore)
+                .build();
+            
+            matchRepository.save(match);
+            return true;
+            
+        } catch (Exception e) {
+            log.error("Error importing match: {}", e.getMessage(), e);
+            return false;
+        }
     }
 }
 

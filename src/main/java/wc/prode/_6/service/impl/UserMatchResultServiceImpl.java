@@ -48,6 +48,9 @@ public class UserMatchResultServiceImpl implements UserMatchResultService {
 
         // Validar que no se pueda apostar menos de 1 hora antes del partido
         validateBettingDeadline(match);
+        
+        // Validar que el partido no tenga resultado aún
+        validateMatchHasNoResult(match);
 
         UserMatchResult result = userMatchResultRepository.findByUserAndMatchId(user, request.getMatchId())
                 .orElse(UserMatchResult.builder()
@@ -71,10 +74,26 @@ public class UserMatchResultServiceImpl implements UserMatchResultService {
         }
     }
 
+    /**
+     * Valida que el partido no tenga resultado aún.
+     * Si el partido ya tiene resultado, no se pueden crear ni modificar apuestas.
+     */
+    private void validateMatchHasNoResult(Match match) {
+        if (match.getHomeScore() != null && match.getAwayScore() != null) {
+            throw new BadRequestException("No se puede modificar la apuesta porque el partido ya tiene un resultado final.");
+        }
+    }
+
     @Override
     @Transactional
     public void deleteUserMatchResult(String userEmail, Long matchId) {
         User user = getUserByEmail(userEmail);
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Match not found with id: " + matchId));
+        
+        // Validar que el partido no tenga resultado aún
+        validateMatchHasNoResult(match);
+        
         UserMatchResult result = userMatchResultRepository.findByUserAndMatchId(user, matchId)
                 .orElseThrow(() -> new ResourceNotFoundException("User match result not found"));
         userMatchResultRepository.delete(result);

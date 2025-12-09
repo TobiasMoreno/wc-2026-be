@@ -31,11 +31,13 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("User with email " + request.getEmail() + " already exists");
         }
 
+        Role userRole = determineUserRole(request.getName(), request.getEmail());
+
         User user = User.builder()
                 .email(request.getEmail())
                 .name(request.getName())
                 .pictureUrl(request.getPicture())
-                .role(Role.USER)
+                .role(userRole)
                 .build();
 
         user = userRepository.save(user);
@@ -54,21 +56,33 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseGet(() -> {
                     // Si el usuario no existe, lo creamos (OAuth2.0 flow)
+                    Role userRole = determineUserRole(request.getName(), request.getEmail());
                     User newUser = User.builder()
                             .email(request.getEmail())
                             .name(request.getName())
                             .pictureUrl(request.getPicture())
-                            .role(Role.USER)
+                            .role(userRole)
                             .build();
                     return userRepository.save(newUser);
                 });
 
+        // Verificar si el usuario debe ser admin (por si cambió su nombre)
+        Role newRole = determineUserRole(request.getName(), request.getEmail());
+        boolean roleChanged = user.getRole() != newRole;
+        if (roleChanged) {
+            user.setRole(newRole);
+        }
+
         // Actualizar información si cambió
-        if (!user.getName().equals(request.getName()) || 
-            (request.getPicture() != null && !request.getPicture().equals(user.getPictureUrl()))) {
-            user.setName(request.getName());
-            if (request.getPicture() != null) {
-                user.setPictureUrl(request.getPicture());
+        boolean nameOrPictureChanged = !user.getName().equals(request.getName()) || 
+            (request.getPicture() != null && !request.getPicture().equals(user.getPictureUrl()));
+        
+        if (nameOrPictureChanged || roleChanged) {
+            if (nameOrPictureChanged) {
+                user.setName(request.getName());
+                if (request.getPicture() != null) {
+                    user.setPictureUrl(request.getPicture());
+                }
             }
             user = userRepository.save(user);
         }
@@ -80,6 +94,24 @@ public class AuthServiceImpl implements AuthService {
         response.setRole(user.getRole().name());
 
         return response;
+    }
+
+    /**
+     * Determina el rol del usuario basándose en su nombre o email.
+     * Si el nombre o email contiene "tobias" o "lautaro" (case-insensitive), se asigna rol ADMIN.
+     * De lo contrario, se asigna rol USER.
+     */
+    private Role determineUserRole(String name, String email) {
+        String nameLower = name != null ? name.toLowerCase() : "";
+        String emailLower = email != null ? email.toLowerCase() : "";
+        
+        if (nameLower.contains("tobias") || nameLower.contains("lautaro") ||
+            emailLower.contains("tobias") || emailLower.contains("lautaro")) {
+            log.info("Assigning ADMIN role to user: {} ({})", name, email);
+            return Role.ADMIN;
+        }
+        
+        return Role.USER;
     }
 }
 

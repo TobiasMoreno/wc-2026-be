@@ -3,6 +3,7 @@ package wc.prode._6.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import wc.prode._6.dto.request.UpdateMatchResultRequest;
 import wc.prode._6.dto.response.ApiResponse;
@@ -54,6 +55,7 @@ public class MatchController {
     }
 
     @PutMapping("/{id}/result")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<MatchResponse>> updateMatchResult(
             @PathVariable Long id,
             @Valid @RequestBody UpdateMatchResultRequest request) {

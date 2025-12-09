@@ -38,8 +38,8 @@ public class SecurityConfig {
 						.requestMatchers("/actuator/**").permitAll()
 						// Endpoints de autenticación
 						.requestMatchers("/auth/**").permitAll()
-						// Endpoints públicos de matches
-						.requestMatchers("/matches/**").permitAll()
+						// Endpoints públicos de matches (GET solo)
+						.requestMatchers("/matches", "/matches/**").permitAll()
 						// Cualquier otra petición requiere autenticación
 						.anyRequest().authenticated())
 				.csrf(AbstractHttpConfigurer::disable)
